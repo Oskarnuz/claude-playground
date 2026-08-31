@@ -1,0 +1,92 @@
+<div class="app">
+
+  <header class="app-header">
+    <h1>Claude Playground</h1>
+    <p>Experimenta con los modelos de Anthropic</p>
+  </header>
+
+  <div class="app-body">
+
+    <%# ── Left: form ── %>
+    <div class="left-col">
+      <%= form_with url: prompts_path, method: :post, data: { turbo: false }, class: "left-form" do %>
+        <div class="form-card">
+
+          <div class="field-group">
+            <label class="field-label">Modelo</label>
+            <%= select_tag :model,
+                options_for_select([
+                  ["Haiku 4.5  — $0.80/$4.00 por MTok",  "claude-haiku-4-5-20251001"],
+                  ["Sonnet 4.6 — $3.00/$15.00 por MTok", "claude-sonnet-4-6"],
+                  ["Opus 4.7   — $15.00/$75.00 por MTok", "claude-opus-4-7"]
+                ], @model) %>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">
+              System prompt
+              <span style="color:#3a3a3a;font-style:italic;text-transform:none;font-weight:400;">(opcional)</span>
+            </label>
+            <%= text_area_tag :system_prompt, @system_prompt, rows: 4,
+                placeholder: "Eres un asistente útil y conciso..." %>
+          </div>
+
+          <div class="field-group grow">
+            <label class="field-label">Mensaje</label>
+            <%= text_area_tag :user_message, @user_message,
+                class: "grow",
+                placeholder: "Escribe tu mensaje aquí..." %>
+          </div>
+
+          <%= submit_tag "Enviar a Claude", class: "submit-btn" %>
+        </div>
+      <% end %>
+    </div>
+
+    <%# ── Right: response ── %>
+    <div class="right-col">
+      <% if @response %>
+        <% if @usage && @usage[:total_tokens] > 0 %>
+          <div class="usage-bar">
+            <div class="usage-stat">
+              <span class="usage-label">Entrada</span>
+              <span class="usage-value"><%= number_with_delimiter(@usage[:input_tokens]) %> tok</span>
+            </div>
+            <div class="usage-divider"></div>
+            <div class="usage-stat">
+              <span class="usage-label">Salida</span>
+              <span class="usage-value"><%= number_with_delimiter(@usage[:output_tokens]) %> tok</span>
+            </div>
+            <div class="usage-divider"></div>
+            <div class="usage-stat">
+              <span class="usage-label">Total</span>
+              <span class="usage-value usage-total"><%= number_with_delimiter(@usage[:total_tokens]) %> tok</span>
+            </div>
+            <div class="usage-divider"></div>
+            <div class="usage-stat">
+              <span class="usage-label">Costo aprox.</span>
+              <span class="usage-value usage-cost">$<%= format("%.6f", @usage[:cost_usd]) %></span>
+            </div>
+          </div>
+        <% end %>
+
+        <div class="response-card">
+          <div class="response-header">
+            <div class="dot"></div>
+            <span>Respuesta de Claude</span>
+          </div>
+          <div class="response-body"><%= @response %></div>
+        </div>
+
+      <% else %>
+        <div class="empty-state">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          <p>La respuesta aparecerá aquí</p>
+        </div>
+      <% end %>
+    </div>
+
+  </div>
+</div>

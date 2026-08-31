@@ -1,0 +1,150 @@
+<% content_for :title, "Agente de soporte" %>
+<div class="app">
+
+  <header class="app-header">
+    <h1>Agente de triaje de soporte</h1>
+    <p>Recibe un ticket · consulta la KB · resuelve o escala · redacta la acción</p>
+    <a class="nav-link" href="<%= prompts_new_path %>">Playground de prompts →</a>
+  </header>
+
+  <div class="app-body">
+
+    <%# ── Left: ticket form ── %>
+    <div class="left-col">
+      <%= form_with url: run_support_agent_path, method: :post, data: { turbo: false }, class: "left-form" do %>
+        <div class="form-card"
+             data-controller="preset"
+             data-preset-presets-value="<%= presets.to_json %>">
+
+          <div class="field-group">
+            <label class="field-label">Cargar un caso de la suite</label>
+            <select data-preset-target="select" data-action="change->preset#apply">
+              <option value="">— ticket manual —</option>
+              <% presets.each do |p| %>
+                <option value="<%= p["id"] %>"><%= p["id"] %> — <%= p["description"] %></option>
+              <% end %>
+            </select>
+          </div>
+
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">Ticket ID</label>
+              <%= text_field_tag :ticket_id, @ticket["ticket_id"], data: { preset_target: "ticketId" } %>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Tier</label>
+              <%= select_tag :customer_tier,
+                    options_for_select(%w[standard pro enterprise], @ticket["customer_tier"]),
+                    data: { preset_target: "tier" } %>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Locale</label>
+              <%= select_tag :locale,
+                    options_for_select(["es-ES", "en-US"], @ticket["locale"]),
+                    data: { preset_target: "locale" } %>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Asunto</label>
+            <%= text_field_tag :subject, @ticket["subject"], data: { preset_target: "subject" } %>
+          </div>
+
+          <div class="field-group grow">
+            <label class="field-label">Cuerpo del ticket</label>
+            <%= text_area_tag :body, @ticket["body"], class: "grow",
+                  placeholder: "Escribe el mensaje del cliente…",
+                  data: { preset_target: "body" } %>
+          </div>
+
+          <%= submit_tag "Ejecutar agente", class: "submit-btn" %>
+        </div>
+      <% end %>
+    </div>
+
+    <%# ── Right: result ── %>
+    <div class="right-col">
+      <% if @result %>
+        <% a = @result[:audit] %>
+
+        <div class="verdict verdict--<%= @result[:decision] %>">
+          <span class="verdict-badge"><%= @result[:decision] == "resolve" ? "RESOLVER" : "ESCALAR" %></span>
+          <span class="verdict-meta">
+            categoría <strong><%= @result[:category] %></strong>
+            · confianza <strong><%= @result[:confidence] %></strong>
+            <% if @result[:kb_refs].any? %>· KB <strong><%= @result[:kb_refs].join(", ") %></strong><% end %>
+          </span>
+        </div>
+
+        <% if a[:guardrail_triggered].present? %>
+          <div class="banner banner--guardrail">
+            🛡️ Guardrail: el agente propuso resolver, pero el código lo revirtió a escalada — <%= a[:guardrail_triggered] %>
+          </div>
+        <% end %>
+        <% if a[:injection_suspected] %>
+          <div class="banner banner--injection">⚠️ Posible intento de prompt injection detectado en el ticket (marcado en auditoría).</div>
+        <% end %>
+        <% if a[:kb_unavailable] %>
+          <div class="banner banner--guardrail">📕 La base de conocimiento no respondió tras los reintentos — escalada determinista.</div>
+        <% end %>
+
+        <div class="usage-bar">
+          <div class="usage-stat"><span class="usage-label">Llamadas API</span><span class="usage-value"><%= a[:api_calls] %></span></div>
+          <div class="usage-divider"></div>
+          <div class="usage-stat"><span class="usage-label">Tokens</span><span class="usage-value"><%= number_with_delimiter(a[:tokens][:input] + a[:tokens][:output]) %></span></div>
+          <div class="usage-divider"></div>
+          <div class="usage-stat"><span class="usage-label">Coste</span><span class="usage-value usage-cost">$<%= format("%.5f", a[:cost_usd]) %></span></div>
+          <div class="usage-divider"></div>
+          <div class="usage-stat"><span class="usage-label">Latencia</span><span class="usage-value usage-total"><%= number_with_delimiter(a[:latency_ms]) %> ms</span></div>
+        </div>
+
+        <div class="result-scroll">
+          <div class="result-block">
+            <div class="result-block-title"><%= @result[:decision] == "resolve" ? "Borrador para el cliente" : "Mensaje de espera al cliente" %></div>
+            <div class="result-text"><%= @result[:draft_response] %></div>
+          </div>
+
+          <% if @result[:decision] == "escalate" %>
+            <div class="result-block">
+              <div class="result-block-title">Motivo de la escalada</div>
+              <div class="result-text"><%= @result[:escalation_reason] %></div>
+            </div>
+            <% if @result[:escalation_summary].present? %>
+              <div class="result-block">
+                <div class="result-block-title">Resumen para el humano</div>
+                <div class="result-text"><%= @result[:escalation_summary] %></div>
+              </div>
+            <% end %>
+          <% end %>
+
+          <div class="result-block">
+            <div class="result-block-title">Traza de pasos</div>
+            <ol class="steps">
+              <% a[:steps].each do |s| %>
+                <li class="step step--<%= s[:type] %>">
+                  <span class="step-type"><%= s[:type] %></span>
+                  <span class="step-detail"><%= s.except(:type).map { |k, v| "#{k}: #{v}" }.join(" · ") %></span>
+                </li>
+              <% end %>
+              <% if a[:steps].empty? %><li class="step"><span class="step-detail">— sin pasos (atajo determinista) —</span></li><% end %>
+            </ol>
+          </div>
+
+          <details class="result-block">
+            <summary class="result-block-title">JSON completo (contrato de salida)</summary>
+            <pre class="result-json"><%= JSON.pretty_generate(@result) %></pre>
+          </details>
+        </div>
+
+      <% else %>
+        <div class="empty-state">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          <p>Carga un caso o escribe un ticket y pulsa "Ejecutar agente"</p>
+        </div>
+      <% end %>
+    </div>
+
+  </div>
+</div>
