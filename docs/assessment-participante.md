@@ -308,6 +308,8 @@ documentos en `docs/`.
 
 ## Entregable 1 — Spec técnica (plantilla §C.3)
 
+### Github: https://github.com/Oskarnuz/claude-playground
+
 ### Spec: Agente de triaje de tickets de soporte
 
 #### Problema
